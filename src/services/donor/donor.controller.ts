@@ -3,7 +3,10 @@ import type { AuthRequest } from "../../middlewares/auth.middleware.js";
 import type { BloodGroup } from "../../generated/prisma/client.js";
 import { DonorService } from "./donor.service.js";
 
-const createDonor = async (req: AuthRequest, res: Response) => {
+const createDonor = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -35,7 +38,10 @@ const createDonor = async (req: AuthRequest, res: Response) => {
   }
 };
 
-const getAllDonors = async (req: AuthRequest, res: Response) => {
+const getAllDonors = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     const { bloodGroup, district } = req.query;
 
@@ -61,9 +67,12 @@ const getAllDonors = async (req: AuthRequest, res: Response) => {
   }
 };
 
-const getDonorById = async (req: AuthRequest, res: Response) => {
+const getDonorById = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result = await DonorService.getDonorById(id);
 
@@ -76,13 +85,18 @@ const getDonorById = async (req: AuthRequest, res: Response) => {
     res.status(404).json({
       success: false,
       message:
-        error instanceof Error ? error.message : "Donor not found",
+        error instanceof Error
+          ? error.message
+          : "Donor not found",
       data: null,
     });
   }
 };
 
-const updateDonor = async (req: AuthRequest, res: Response) => {
+const updateDonor = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -92,7 +106,7 @@ const updateDonor = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const donor = await DonorService.getDonorById(id);
 
@@ -102,12 +116,16 @@ const updateDonor = async (req: AuthRequest, res: Response) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "You can only update your own donor profile",
+        message:
+          "You can only update your own donor profile",
         data: null,
       });
     }
 
-    const result = await DonorService.updateDonor(id, req.body);
+    const result = await DonorService.updateDonor(
+      id,
+      req.body
+    );
 
     res.status(200).json({
       success: true,
@@ -118,13 +136,18 @@ const updateDonor = async (req: AuthRequest, res: Response) => {
     res.status(400).json({
       success: false,
       message:
-        error instanceof Error ? error.message : "Update failed",
+        error instanceof Error
+          ? error.message
+          : "Update failed",
       data: null,
     });
   }
 };
 
-const deleteDonor = async (req: AuthRequest, res: Response) => {
+const deleteDonor = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -134,7 +157,7 @@ const deleteDonor = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const donor = await DonorService.getDonorById(id);
 
@@ -144,7 +167,8 @@ const deleteDonor = async (req: AuthRequest, res: Response) => {
     ) {
       return res.status(403).json({
         success: false,
-        message: "You can only delete your own donor profile",
+        message:
+          "You can only delete your own donor profile",
         data: null,
       });
     }
@@ -160,7 +184,9 @@ const deleteDonor = async (req: AuthRequest, res: Response) => {
     res.status(404).json({
       success: false,
       message:
-        error instanceof Error ? error.message : "Delete failed",
+        error instanceof Error
+          ? error.message
+          : "Delete failed",
       data: null,
     });
   }

@@ -68,7 +68,7 @@ const getContactRequestById = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result =
       await ContactRequestService.getContactRequestById(id);
@@ -103,7 +103,7 @@ const updateContactRequest = async (
       });
     }
 
-    const { id } = req.params;
+   const id = req.params.id as string;
 
     const contactRequest =
       await ContactRequestService.getContactRequestById(id);
@@ -158,7 +158,7 @@ const deleteContactRequest = async (
       });
     }
 
-    const { id } = req.params;
+   const id = req.params.id as string;
 
     const contactRequest =
       await ContactRequestService.getContactRequestById(id);

@@ -78,7 +78,7 @@ const getBloodRequestById = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result =
       await BloodRequestService.getBloodRequestById(id);
@@ -113,7 +113,7 @@ const updateBloodRequest = async (
       });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const request =
       await BloodRequestService.getBloodRequestById(id);
@@ -166,7 +166,7 @@ const deleteBloodRequest = async (
       });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const request =
       await BloodRequestService.getBloodRequestById(id);

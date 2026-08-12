@@ -15,7 +15,9 @@ const getAllUsers = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message:
-        error instanceof Error ? error.message : "Failed to retrieve users",
+        error instanceof Error
+          ? error.message
+          : "Failed to retrieve users",
       data: null,
     });
   }
@@ -23,7 +25,7 @@ const getAllUsers = async (req: AuthRequest, res: Response) => {
 
 const getUserById = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!req.user) {
       return res.status(401).json({
@@ -51,7 +53,8 @@ const getUserById = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(404).json({
       success: false,
-      message: error instanceof Error ? error.message : "User not found",
+      message:
+        error instanceof Error ? error.message : "User not found",
       data: null,
     });
   }
@@ -59,7 +62,7 @@ const getUserById = async (req: AuthRequest, res: Response) => {
 
 const updateUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!req.user) {
       return res.status(401).json({
@@ -87,7 +90,8 @@ const updateUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: error instanceof Error ? error.message : "Update failed",
+      message:
+        error instanceof Error ? error.message : "Update failed",
       data: null,
     });
   }
@@ -95,7 +99,7 @@ const updateUser = async (req: AuthRequest, res: Response) => {
 
 const deleteUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result = await UserService.deleteUser(id);
 
@@ -107,7 +111,8 @@ const deleteUser = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     res.status(404).json({
       success: false,
-      message: error instanceof Error ? error.message : "Delete failed",
+      message:
+        error instanceof Error ? error.message : "Delete failed",
       data: null,
     });
   }
