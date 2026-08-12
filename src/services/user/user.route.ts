@@ -12,9 +12,17 @@ router.get(
   UserController.getAllUsers
 );
 
-router.get("/:id", authMiddleware, UserController.getUserById);
+router.get(
+  "/:id",
+  authMiddleware,
+  UserController.getUserById
+);
 
-router.patch("/:id", authMiddleware, UserController.updateUser);
+router.patch(
+  "/:id",
+  authMiddleware,
+  UserController.updateUser
+);
 
 router.delete(
   "/:id",

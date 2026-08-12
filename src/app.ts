@@ -7,6 +7,7 @@ import cors from "cors";
 
 import authRoutes from "./services/auth/auth.route.js";
 import userRoutes from "./services/user/user.route.js";
+import donorRoutes from "./services/donor/donor.route.js";
 
 const app: Application = express();
 
@@ -22,5 +23,6 @@ app.get("/", (req: Request, res: Response) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/donors", donorRoutes);
 
 export default app;
