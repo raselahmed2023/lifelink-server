@@ -1,4 +1,5 @@
 import type { Response } from "express";
+
 import type { AuthRequest } from "../../middlewares/auth.middleware.js";
 import { ContactRequestService } from "./contactRequest.service.js";
 
@@ -10,20 +11,30 @@ const createContactRequest = async (
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized access",
+        message:
+          "Unauthorized access",
         data: null,
       });
     }
 
     const result =
-      await ContactRequestService.createContactRequest({
-        ...req.body,
-        requesterId: req.user.userId,
-      });
+      await ContactRequestService.createContactRequest(
+        {
+          requesterId:
+            req.user.userId,
+
+          donorId:
+            req.body.donorId,
+
+          message:
+            req.body.message,
+        }
+      );
 
     res.status(201).json({
       success: true,
-      message: "Contact request created successfully",
+      message:
+        "Contact request sent successfully",
       data: result,
     });
   } catch (error) {
@@ -48,7 +59,8 @@ const getAllContactRequests = async (
 
     res.status(200).json({
       success: true,
-      message: "Contact requests retrieved successfully",
+      message:
+        "Contact requests retrieved successfully",
       data: result,
     });
   } catch (error) {
@@ -63,19 +75,97 @@ const getAllContactRequests = async (
   }
 };
 
+const getIncomingRequests = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unauthorized access",
+        data: null,
+      });
+    }
+
+    const result =
+      await ContactRequestService.getIncomingRequests(
+        req.user.userId
+      );
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Incoming contact requests retrieved successfully",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to retrieve incoming requests",
+      data: null,
+    });
+  }
+};
+
+const getOutgoingRequests = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Unauthorized access",
+        data: null,
+      });
+    }
+
+    const result =
+      await ContactRequestService.getOutgoingRequests(
+        req.user.userId
+      );
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Outgoing contact requests retrieved successfully",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to retrieve outgoing requests",
+      data: null,
+    });
+  }
+};
+
 const getContactRequestById = async (
   req: AuthRequest,
   res: Response
 ) => {
   try {
-    const id = req.params.id as string;
+    const id =
+      req.params.id as string;
 
     const result =
-      await ContactRequestService.getContactRequestById(id);
+      await ContactRequestService.getContactRequestById(
+        id
+      );
 
     res.status(200).json({
       success: true,
-      message: "Contact request retrieved successfully",
+      message:
+        "Contact request retrieved successfully",
       data: result,
     });
   } catch (error) {
@@ -98,39 +188,30 @@ const updateContactRequest = async (
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized access",
-        data: null,
-      });
-    }
-
-   const id = req.params.id as string;
-
-    const contactRequest =
-      await ContactRequestService.getContactRequestById(id);
-
-    const donorOwnerId = contactRequest.donor.userId;
-
-    if (
-      req.user.role !== "ADMIN" &&
-      donorOwnerId !== req.user.userId
-    ) {
-      return res.status(403).json({
-        success: false,
         message:
-          "Only the donor or an admin can update this contact request",
+          "Unauthorized access",
         data: null,
       });
     }
+
+    const id =
+      req.params.id as string;
+
+    const { status } = req.body;
 
     const result =
-      await ContactRequestService.updateContactRequest(
+      await ContactRequestService.updateContactRequestStatus(
         id,
-        req.body
+        req.user.userId,
+        status
       );
 
     res.status(200).json({
       success: true,
-      message: "Contact request updated successfully",
+      message:
+        status === "APPROVED"
+          ? "Contact request approved"
+          : "Contact request rejected",
       data: result,
     });
   } catch (error) {
@@ -139,60 +220,7 @@ const updateContactRequest = async (
       message:
         error instanceof Error
           ? error.message
-          : "Update failed",
-      data: null,
-    });
-  }
-};
-
-const deleteContactRequest = async (
-  req: AuthRequest,
-  res: Response
-) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized access",
-        data: null,
-      });
-    }
-
-   const id = req.params.id as string;
-
-    const contactRequest =
-      await ContactRequestService.getContactRequestById(id);
-
-    const donorOwnerId = contactRequest.donor.userId;
-
-    if (
-      req.user.role !== "ADMIN" &&
-      contactRequest.requesterId !== req.user.userId &&
-      donorOwnerId !== req.user.userId
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "You are not allowed to delete this contact request",
-        data: null,
-      });
-    }
-
-    const result =
-      await ContactRequestService.deleteContactRequest(id);
-
-    res.status(200).json({
-      success: true,
-      message: "Contact request deleted successfully",
-      data: result,
-    });
-  } catch (error) {
-    res.status(404).json({
-      success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Delete failed",
+          : "Failed to update contact request",
       data: null,
     });
   }
@@ -201,7 +229,8 @@ const deleteContactRequest = async (
 export const ContactRequestController = {
   createContactRequest,
   getAllContactRequests,
+  getIncomingRequests,
+  getOutgoingRequests,
   getContactRequestById,
   updateContactRequest,
-  deleteContactRequest,
 };
