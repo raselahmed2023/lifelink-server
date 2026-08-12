@@ -1,5 +1,10 @@
-import express, { Application, Request, Response } from "express";
+import express, {
+  type Application,
+  type Request,
+  type Response,
+} from "express";
 import cors from "cors";
+import authRoutes from "./services/auth/auth.route.js";
 
 const app: Application = express();
 
@@ -12,5 +17,7 @@ app.get("/", (req: Request, res: Response) => {
     message: "Life-Link API is running",
   });
 });
+
+app.use("/api/auth", authRoutes);
 
 export default app;

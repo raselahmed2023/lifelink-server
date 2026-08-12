@@ -6,3 +6,116 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model User {
+  id              String           @id @default(uuid())
+  name            String
+  email           String           @unique
+  password        String
+  phone           String?
+  role            UserRole         @default(USER)
+  status          UserStatus       @default(ACTIVE)
+  isDeleted       Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  donorProfile    DonorProfile?
+  bloodRequests   BloodRequest[]
+  contactRequests ContactRequest[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model DonorProfile {
+  id              String           @id @default(uuid())
+  userId          String           @unique
+  bloodGroup      BloodGroup
+  district        String
+  area            String?
+  lastDonation    DateTime?
+  isAvailable     Boolean          @default(true)
+  isDeleted       Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  contactRequests ContactRequest[]
+
+  @@index([bloodGroup])
+  @@index([district])
+  @@index([isAvailable])
+  @@map("donor_profiles")
+}
+
+model BloodRequest {
+  id           String        @id @default(uuid())
+  userId       String
+  patientName  String
+  bloodGroup   BloodGroup
+  hospital     String
+  district     String
+  requiredDate DateTime
+  phone        String
+  message      String?
+  status       RequestStatus @default(PENDING)
+  isDeleted    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([bloodGroup])
+  @@index([district])
+  @@index([status])
+  @@map("blood_requests")
+}
+
+model ContactRequest {
+  id          String        @id @default(uuid())
+  requesterId String
+  donorId     String
+  message     String?
+  status      RequestStatus @default(PENDING)
+  isDeleted   Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  requester   User          @relation(fields: [requesterId], references: [id], onDelete: Restrict)
+  donor       DonorProfile  @relation(fields: [donorId], references: [id], onDelete: Restrict)
+
+  @@index([requesterId])
+  @@index([donorId])
+  @@index([status])
+  @@map("contact_requests")
+}
