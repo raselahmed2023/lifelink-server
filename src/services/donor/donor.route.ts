@@ -1,21 +1,53 @@
 import { Router } from "express";
-import { DonorController } from "./donor.controller.js";
+
 import { authMiddleware } from "../../middlewares/auth.middleware.js";
+import { DonorController } from "./donor.controller.js";
 
 const router = Router();
 
-router.post("/", authMiddleware, DonorController.createDonor);
+/*
+  Public:
+  Browse donors
+*/
+router.get(
+  "/",
+  DonorController.getAllDonors
+);
 
-router.get("/", DonorController.getAllDonors);
+/*
+  Protected:
+  Become donor
+*/
+router.post(
+  "/",
+  authMiddleware,
+  DonorController.createDonor
+);
 
-router.get("/:id", DonorController.getDonorById);
+/*
+  Public:
+  Single donor
+*/
+router.get(
+  "/:id",
+  DonorController.getDonorById
+);
 
+/*
+  Protected:
+  Donor can update own profile.
+  Admin can moderate donor profile.
+*/
 router.patch(
   "/:id",
   authMiddleware,
   DonorController.updateDonor
 );
 
+/*
+  Protected:
+  Soft deactivate donor profile.
+*/
 router.delete(
   "/:id",
   authMiddleware,

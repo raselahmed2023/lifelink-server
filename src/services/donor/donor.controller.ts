@@ -1,6 +1,6 @@
 import type { Response } from "express";
+
 import type { AuthRequest } from "../../middlewares/auth.middleware.js";
-import type { BloodGroup } from "../../generated/prisma/client.js";
 import { DonorService } from "./donor.service.js";
 
 const createDonor = async (
@@ -9,21 +9,56 @@ const createDonor = async (
 ) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized access",
-        data: null,
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message:
+            "Unauthorized access",
+          data: null,
+        });
     }
 
-    const result = await DonorService.createDonor({
-      ...req.body,
-      userId: req.user.userId,
-    });
+    const {
+      bloodGroup,
+      district,
+      area,
+      lastDonation,
+      isAvailable,
+    } = req.body;
+
+    if (
+      !bloodGroup ||
+      !district
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Blood group and district are required",
+          data: null,
+        });
+    }
+
+    const result =
+      await DonorService.createDonor(
+        {
+          userId:
+            req.user.userId,
+
+          bloodGroup,
+          district,
+          area,
+          lastDonation,
+          isAvailable,
+        }
+      );
 
     res.status(201).json({
       success: true,
-      message: "Donor profile created successfully",
+      message:
+        "Donor profile created successfully",
       data: result,
     });
   } catch (error) {
@@ -43,16 +78,28 @@ const getAllDonors = async (
   res: Response
 ) => {
   try {
-    const { bloodGroup, district } = req.query;
+    const bloodGroup =
+      typeof req.query
+        .bloodGroup === "string"
+        ? req.query.bloodGroup
+        : undefined;
 
-    const result = await DonorService.getAllDonors({
-      bloodGroup: bloodGroup as BloodGroup | undefined,
-      district: district as string | undefined,
-    });
+    const district =
+      typeof req.query
+        .district === "string"
+        ? req.query.district
+        : undefined;
+
+    const result =
+      await DonorService.getAllDonors(
+        bloodGroup,
+        district
+      );
 
     res.status(200).json({
       success: true,
-      message: "Donors retrieved successfully",
+      message:
+        "Donors retrieved successfully",
       data: result,
     });
   } catch (error) {
@@ -72,13 +119,18 @@ const getDonorById = async (
   res: Response
 ) => {
   try {
-    const id = req.params.id as string;
+    const id =
+      req.params.id as string;
 
-    const result = await DonorService.getDonorById(id);
+    const result =
+      await DonorService.getDonorById(
+        id
+      );
 
     res.status(200).json({
       success: true,
-      message: "Donor retrieved successfully",
+      message:
+        "Donor retrieved successfully",
       data: result,
     });
   } catch (error) {
@@ -99,37 +151,53 @@ const updateDonor = async (
 ) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized access",
-        data: null,
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message:
+            "Unauthorized access",
+          data: null,
+        });
     }
 
-    const id = req.params.id as string;
+    const id =
+      req.params.id as string;
 
-    const donor = await DonorService.getDonorById(id);
+    /*
+      Whitelist fields.
 
-    if (
-      req.user.role !== "ADMIN" &&
-      donor.userId !== req.user.userId
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "You can only update your own donor profile",
-        data: null,
-      });
-    }
+      userId / isDeleted etc.
+      cannot be changed from body.
+    */
+    const payload = {
+      bloodGroup:
+        req.body.bloodGroup,
 
-    const result = await DonorService.updateDonor(
-      id,
-      req.body
-    );
+      district:
+        req.body.district,
+
+      area: req.body.area,
+
+      lastDonation:
+        req.body.lastDonation,
+
+      isAvailable:
+        req.body.isAvailable,
+    };
+
+    const result =
+      await DonorService.updateDonor(
+        id,
+        req.user.userId,
+        req.user.role,
+        payload
+      );
 
     res.status(200).json({
       success: true,
-      message: "Donor profile updated successfully",
+      message:
+        "Donor profile updated successfully",
       data: result,
     });
   } catch (error) {
@@ -138,7 +206,7 @@ const updateDonor = async (
       message:
         error instanceof Error
           ? error.message
-          : "Update failed",
+          : "Failed to update donor profile",
       data: null,
     });
   }
@@ -150,43 +218,39 @@ const deleteDonor = async (
 ) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized access",
-        data: null,
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message:
+            "Unauthorized access",
+          data: null,
+        });
     }
 
-    const id = req.params.id as string;
+    const id =
+      req.params.id as string;
 
-    const donor = await DonorService.getDonorById(id);
-
-    if (
-      req.user.role !== "ADMIN" &&
-      donor.userId !== req.user.userId
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "You can only delete your own donor profile",
-        data: null,
-      });
-    }
-
-    const result = await DonorService.deleteDonor(id);
+    const result =
+      await DonorService.deleteDonor(
+        id,
+        req.user.userId,
+        req.user.role
+      );
 
     res.status(200).json({
       success: true,
-      message: "Donor profile deleted successfully",
+      message:
+        "Donor profile deactivated successfully",
       data: result,
     });
   } catch (error) {
-    res.status(404).json({
+    res.status(400).json({
       success: false,
       message:
         error instanceof Error
           ? error.message
-          : "Delete failed",
+          : "Failed to deactivate donor profile",
       data: null,
     });
   }
