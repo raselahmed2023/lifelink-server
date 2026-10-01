@@ -6,21 +6,16 @@ import { DonorController } from "./donor.controller.js";
 
 const router = Router();
 
-router.get(
-  "/",
-  DonorController.getAllDonors
-);
+router.get("/", (req, res) => {
+  void DonorController.getAllDonors(req, res);
+});
 
 router.get(
   "/admin/all",
   authMiddleware,
   authorizeRoles("ADMIN"),
   (req, res) => {
-    return DonorController.getAllDonors(
-      req,
-      res,
-      true
-    );
+    void DonorController.getAllDonors(req, res, true);
   }
 );
 
