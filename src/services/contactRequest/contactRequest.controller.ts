@@ -1,5 +1,5 @@
-import type { Response } from "express";
 
+import type { Response } from "express";
 import type { AuthRequest } from "../../middlewares/auth.middleware.js";
 import { ContactRequestService } from "./contactRequest.service.js";
 
@@ -11,34 +11,43 @@ const createContactRequest = async (
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message:
-          "Unauthorized access",
+        message: "Unauthorized access",
+        data: null,
+      });
+    }
+
+    if (
+      typeof req.body.donorId !== "string" ||
+      req.body.donorId.length > 60 ||
+      (
+        req.body.message !== undefined &&
+        (
+          typeof req.body.message !== "string" ||
+          req.body.message.length > 1000
+        )
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid contact request",
         data: null,
       });
     }
 
     const result =
-      await ContactRequestService.createContactRequest(
-        {
-          requesterId:
-            req.user.userId,
+      await ContactRequestService.createContactRequest({
+        requesterId: req.user.userId,
+        donorId: req.body.donorId,
+        message: req.body.message,
+      });
 
-          donorId:
-            req.body.donorId,
-
-          message:
-            req.body.message,
-        }
-      );
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message:
-        "Contact request sent successfully",
+      message: "Contact request sent successfully",
       data: result,
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message:
         error instanceof Error
@@ -57,19 +66,15 @@ const getAllContactRequests = async (
     const result =
       await ContactRequestService.getAllContactRequests();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message:
-        "Contact requests retrieved successfully",
+      message: "Contact requests retrieved successfully",
       data: result,
     });
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to retrieve contact requests",
+      message: "Failed to retrieve contact requests",
       data: null,
     });
   }
@@ -79,34 +84,29 @@ const getIncomingRequests = async (
   req: AuthRequest,
   res: Response
 ) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "Unauthorized access",
-        data: null,
-      });
-    }
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized access",
+      data: null,
+    });
+  }
 
+  try {
     const result =
       await ContactRequestService.getIncomingRequests(
         req.user.userId
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message:
-        "Incoming contact requests retrieved successfully",
+      message: "Incoming contact requests retrieved",
       data: result,
     });
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to retrieve incoming requests",
+      message: "Failed to retrieve incoming requests",
       data: null,
     });
   }
@@ -116,34 +116,29 @@ const getOutgoingRequests = async (
   req: AuthRequest,
   res: Response
 ) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "Unauthorized access",
-        data: null,
-      });
-    }
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized access",
+      data: null,
+    });
+  }
 
+  try {
     const result =
       await ContactRequestService.getOutgoingRequests(
         req.user.userId
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message:
-        "Outgoing contact requests retrieved successfully",
+      message: "Outgoing contact requests retrieved",
       data: result,
     });
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to retrieve outgoing requests",
+      message: "Failed to retrieve outgoing requests",
       data: null,
     });
   }
@@ -153,28 +148,31 @@ const getContactRequestById = async (
   req: AuthRequest,
   res: Response
 ) => {
-  try {
-    const id =
-      req.params.id as string;
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+      data: null,
+    });
+  }
 
+  try {
     const result =
       await ContactRequestService.getContactRequestById(
-        id
+        req.params.id as string,
+        req.user.userId,
+        req.user.role
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message:
-        "Contact request retrieved successfully",
+      message: "Contact request retrieved successfully",
       data: result,
     });
-  } catch (error) {
-    res.status(404).json({
+  } catch {
+    return res.status(404).json({
       success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Contact request not found",
+      message: "Contact request not found",
       data: null,
     });
   }
@@ -184,29 +182,25 @@ const updateContactRequest = async (
   req: AuthRequest,
   res: Response
 ) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized access",
+      data: null,
+    });
+  }
+
   try {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "Unauthorized access",
-        data: null,
-      });
-    }
-
-    const id =
-      req.params.id as string;
-
     const { status } = req.body;
 
     const result =
       await ContactRequestService.updateContactRequestStatus(
-        id,
+        req.params.id as string,
         req.user.userId,
         status
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message:
         status === "APPROVED"
@@ -215,7 +209,7 @@ const updateContactRequest = async (
       data: result,
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message:
         error instanceof Error

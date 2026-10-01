@@ -1,7 +1,11 @@
-import type { Response } from "express";
 
+import type { Response } from "express";
 import type { AuthRequest } from "../../middlewares/auth.middleware.js";
 import { BloodRequestService } from "./bloodRequest.service.js";
+import {
+  validateBloodRequest,
+  validBloodGroup,
+} from "../../utils/validation.js";
 
 const createBloodRequest = async (
   req: AuthRequest,
@@ -11,8 +15,7 @@ const createBloodRequest = async (
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        message:
-          "Unauthorized access",
+        message: "Unauthorized access",
         data: null,
       });
     }
@@ -37,36 +40,42 @@ const createBloodRequest = async (
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Patient name, blood group, hospital, district, required date and phone are required",
+        message: "Required fields are missing",
+        data: null,
+      });
+    }
+
+    const validationError = validateBloodRequest(
+      req.body
+    );
+
+    if (validationError) {
+      return res.status(400).json({
+        success: false,
+        message: validationError,
         data: null,
       });
     }
 
     const result =
-      await BloodRequestService.createBloodRequest(
-        {
-          userId:
-            req.user.userId,
+      await BloodRequestService.createBloodRequest({
+        userId: req.user.userId,
+        patientName,
+        bloodGroup,
+        hospital,
+        district,
+        requiredDate,
+        phone,
+        message,
+      });
 
-          patientName,
-          bloodGroup,
-          hospital,
-          district,
-          requiredDate,
-          phone,
-          message,
-        }
-      );
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message:
-        "Blood request submitted successfully and is waiting for admin approval",
+      message: "Blood request submitted for admin approval",
       data: result,
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message:
         error instanceof Error
@@ -83,256 +92,335 @@ const getAllBloodRequests = async (
 ) => {
   try {
     const bloodGroup =
-      typeof req.query
-        .bloodGroup === "string"
+      typeof req.query.bloodGroup === "string"
         ? req.query.bloodGroup
         : undefined;
 
     const district =
-      typeof req.query
-        .district === "string"
+      typeof req.query.district === "string"
         ? req.query.district
         : undefined;
 
-    const status =
-      typeof req.query.status ===
-      "string"
-        ? req.query.status
-        : undefined;
+    if (
+      bloodGroup &&
+      !validBloodGroup(bloodGroup)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid blood group",
+        data: null,
+      });
+    }
 
-    const result =
-      await BloodRequestService.getAllBloodRequests(
-        {
-          bloodGroup,
-          district,
-          status,
-        }
-      );
+    const data =
+      await BloodRequestService.getPublicBloodRequests({
+        bloodGroup,
+        district,
+      });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message:
-        "Blood requests retrieved successfully",
-      data: result,
+      message: "Public blood requests",
+      data,
     });
-  } catch (error) {
-    res.status(500).json({
+  } catch {
+    return res.status(500).json({
       success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to retrieve blood requests",
+      message: "Failed to load public requests",
       data: null,
     });
   }
 };
 
-const getBloodRequestById =
-  async (
-    req: AuthRequest,
-    res: Response
-  ) => {
-    try {
-      const id =
-        req.params.id as string;
+const getAdminBloodRequests = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const data =
+      await BloodRequestService.getAllBloodRequests();
 
-      const result =
-        await BloodRequestService.getBloodRequestById(
-          id
-        );
+    return res.status(200).json({
+      success: true,
+      message: "Blood requests retrieved",
+      data,
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve blood requests",
+      data: null,
+    });
+  }
+};
 
-      res.status(200).json({
-        success: true,
-        message:
-          "Blood request retrieved successfully",
-        data: result,
-      });
-    } catch (error) {
-      res.status(404).json({
+const getMyBloodRequests = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+      data: null,
+    });
+  }
+
+  try {
+    const data =
+      await BloodRequestService.getMyBloodRequests(
+        req.user.userId
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: "My blood requests",
+      data,
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load your requests",
+      data: null,
+    });
+  }
+};
+
+const contactLookups = new Map<
+  string,
+  { count: number; reset: number }
+>();
+
+const getBloodRequestContact = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized",
+      data: null,
+    });
+  }
+
+  const now = Date.now();
+  const key = req.user.userId;
+  const state = contactLookups.get(key);
+
+  if (
+    state &&
+    state.reset > now &&
+    state.count >= 10
+  ) {
+    return res.status(429).json({
+      success: false,
+      message: "Too many contact lookups",
+      data: null,
+    });
+  }
+
+  contactLookups.set(
+    key,
+    !state || state.reset <= now
+      ? {
+          count: 1,
+          reset: now + 60 * 60 * 1000,
+        }
+      : {
+          count: state.count + 1,
+          reset: state.reset,
+        }
+  );
+
+  try {
+    const data =
+      await BloodRequestService.getBloodRequestContact(
+        req.params.id as string,
+        key
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: "Request contact",
+      data,
+    });
+  } catch {
+    return res.status(403).json({
+      success: false,
+      message: "Request not found or access denied",
+      data: null,
+    });
+  }
+};
+
+const getBloodRequestById = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const data =
+      await BloodRequestService.getPublicBloodRequestById(
+        req.params.id as string
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: "Blood request retrieved successfully",
+      data,
+    });
+  } catch (error) {
+    return res.status(404).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Blood request not found",
+      data: null,
+    });
+  }
+};
+
+const updateMyBloodRequest = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized access",
+      data: null,
+    });
+  }
+
+  try {
+    const validationError = validateBloodRequest(
+      req.body,
+      true
+    );
+
+    if (validationError) {
+      return res.status(400).json({
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Blood request not found",
+        message: validationError,
         data: null,
       });
     }
-  };
 
-/*
-  USER endpoint:
-  update request information only.
-*/
-const updateMyBloodRequest =
-  async (
-    req: AuthRequest,
-    res: Response
-  ) => {
-    try {
-      if (!req.user) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            message:
-              "Unauthorized access",
-            data: null,
-          });
-      }
+    const payload = {
+      patientName: req.body.patientName,
+      bloodGroup: req.body.bloodGroup,
+      hospital: req.body.hospital,
+      district: req.body.district,
+      requiredDate: req.body.requiredDate,
+      phone: req.body.phone,
+      message: req.body.message,
+    };
 
-      const id =
-        req.params.id as string;
+    const data =
+      await BloodRequestService.updateBloodRequestByOwner(
+        req.params.id as string,
+        req.user.userId,
+        payload
+      );
 
-      /*
-        IMPORTANT:
-        status is NOT included.
-      */
-      const payload = {
-        patientName:
-          req.body.patientName,
+    return res.status(200).json({
+      success: true,
+      message: "Blood request updated successfully",
+      data,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to update blood request",
+      data: null,
+    });
+  }
+};
 
-        bloodGroup:
-          req.body.bloodGroup,
+const updateBloodRequestStatus = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const { status } = req.body;
 
-        hospital:
-          req.body.hospital,
-
-        district:
-          req.body.district,
-
-        requiredDate:
-          req.body.requiredDate,
-
-        phone:
-          req.body.phone,
-
-        message:
-          req.body.message,
-      };
-
-      const result =
-        await BloodRequestService.updateBloodRequestByOwner(
-          id,
-          req.user.userId,
-          payload
-        );
-
-      res.status(200).json({
-        success: true,
-        message:
-          "Blood request updated successfully",
-        data: result,
-      });
-    } catch (error) {
-      res.status(400).json({
+    if (!status) {
+      return res.status(400).json({
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to update blood request",
+        message: "Status is required",
         data: null,
       });
     }
-  };
 
-/*
-  ADMIN ONLY controller.
-*/
-const updateBloodRequestStatus =
-  async (
-    req: AuthRequest,
-    res: Response
-  ) => {
-    try {
-      const id =
-        req.params.id as string;
+    const data =
+      await BloodRequestService.updateBloodRequestStatus(
+        req.params.id as string,
+        status
+      );
 
-      const { status } =
-        req.body;
+    return res.status(200).json({
+      success: true,
+      message: "Blood request status updated successfully",
+      data,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to update blood request status",
+      data: null,
+    });
+  }
+};
 
-      if (!status) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Status is required",
-            data: null,
-          });
-      }
+const deleteBloodRequest = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized access",
+      data: null,
+    });
+  }
 
-      const result =
-        await BloodRequestService.updateBloodRequestStatus(
-          id,
-          status
-        );
+  try {
+    const data =
+      await BloodRequestService.deleteBloodRequest(
+        req.params.id as string,
+        req.user.userId,
+        req.user.role
+      );
 
-      res.status(200).json({
-        success: true,
-        message:
-          "Blood request status updated successfully",
-        data: result,
-      });
-    } catch (error) {
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to update blood request status",
-        data: null,
-      });
-    }
-  };
-
-const deleteBloodRequest =
-  async (
-    req: AuthRequest,
-    res: Response
-  ) => {
-    try {
-      if (!req.user) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            message:
-              "Unauthorized access",
-            data: null,
-          });
-      }
-
-      const id =
-        req.params.id as string;
-
-      const result =
-        await BloodRequestService.deleteBloodRequest(
-          id,
-          req.user.userId,
-          req.user.role
-        );
-
-      res.status(200).json({
-        success: true,
-        message:
-          "Blood request deleted successfully",
-        data: result,
-      });
-    } catch (error) {
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete blood request",
-        data: null,
-      });
-    }
-  };
+    return res.status(200).json({
+      success: true,
+      message: "Blood request deleted successfully",
+      data,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to delete blood request",
+      data: null,
+    });
+  }
+};
 
 export const BloodRequestController = {
   createBloodRequest,
   getAllBloodRequests,
+  getAdminBloodRequests,
+  getMyBloodRequests,
+  getBloodRequestContact,
   getBloodRequestById,
   updateMyBloodRequest,
   updateBloodRequestStatus,

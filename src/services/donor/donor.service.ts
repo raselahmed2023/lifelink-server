@@ -1,17 +1,19 @@
+
 import prisma from "../../lib/prisma.js";
+
+type BloodGroup =
+  | "A_POSITIVE"
+  | "A_NEGATIVE"
+  | "B_POSITIVE"
+  | "B_NEGATIVE"
+  | "AB_POSITIVE"
+  | "AB_NEGATIVE"
+  | "O_POSITIVE"
+  | "O_NEGATIVE";
 
 type CreateDonorPayload = {
   userId: string;
-  bloodGroup:
-    | "A_POSITIVE"
-    | "A_NEGATIVE"
-    | "B_POSITIVE"
-    | "B_NEGATIVE"
-    | "AB_POSITIVE"
-    | "AB_NEGATIVE"
-    | "O_POSITIVE"
-    | "O_NEGATIVE";
-
+  bloodGroup: BloodGroup;
   district: string;
   area?: string;
   lastDonation?: string | null;
@@ -19,16 +21,7 @@ type CreateDonorPayload = {
 };
 
 type UpdateDonorPayload = {
-  bloodGroup?:
-    | "A_POSITIVE"
-    | "A_NEGATIVE"
-    | "B_POSITIVE"
-    | "B_NEGATIVE"
-    | "AB_POSITIVE"
-    | "AB_NEGATIVE"
-    | "O_POSITIVE"
-    | "O_NEGATIVE";
-
+  bloodGroup?: BloodGroup;
   district?: string;
   area?: string | null;
   lastDonation?: string | null;
@@ -54,45 +47,39 @@ const createDonor = async (
   }
 
   const existingDonor =
-    await prisma.donorProfile.findFirst({
+    await prisma.donorProfile.findUnique({
       where: {
         userId: payload.userId,
-        isDeleted: false,
       },
     });
 
-  if (existingDonor) {
+  if (
+    existingDonor &&
+    !existingDonor.isDeleted
+  ) {
     throw new Error(
       "You already have a donor profile"
     );
   }
 
-  const donor =
-    await prisma.donorProfile.create({
-      data: {
-        userId: payload.userId,
-        bloodGroup:
-          payload.bloodGroup,
-
-        district:
-          payload.district.trim(),
-
-        area:
-          payload.area?.trim() ||
-          null,
-
-        lastDonation:
-          payload.lastDonation
-            ? new Date(
-                payload.lastDonation
-              )
-            : null,
-
-        isAvailable:
-          payload.isAvailable ??
-          true,
+  if (
+    existingDonor &&
+    existingDonor.isDeleted
+  ) {
+    return prisma.donorProfile.update({
+      where: {
+        id: existingDonor.id,
       },
-
+      data: {
+        bloodGroup: payload.bloodGroup,
+        district: payload.district.trim(),
+        area: payload.area?.trim() || null,
+        lastDonation: payload.lastDonation
+          ? new Date(payload.lastDonation)
+          : null,
+        isAvailable: payload.isAvailable ?? true,
+        isDeleted: false,
+      },
       include: {
         user: {
           select: {
@@ -102,65 +89,78 @@ const createDonor = async (
         },
       },
     });
+  }
 
-  return donor;
+  return prisma.donorProfile.create({
+    data: {
+      userId: payload.userId,
+      bloodGroup: payload.bloodGroup,
+      district: payload.district.trim(),
+      area: payload.area?.trim() || null,
+      lastDonation: payload.lastDonation
+        ? new Date(payload.lastDonation)
+        : null,
+      isAvailable: payload.isAvailable ?? true,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
 };
 
 const getAllDonors = async (
   bloodGroup?: string,
-  district?: string
+  district?: string,
+  availableOnly = true
 ) => {
-  const donors =
-    await prisma.donorProfile.findMany({
-      where: {
+  return prisma.donorProfile.findMany({
+    where: {
+      isDeleted: false,
+
+      ...(availableOnly
+        ? {
+            isAvailable: true,
+          }
+        : {}),
+
+      user: {
         isDeleted: false,
-
-        user: {
-          isDeleted: false,
-          status: "ACTIVE",
-        },
-
-        ...(bloodGroup
-          ? {
-              bloodGroup:
-                bloodGroup as
-                  | "A_POSITIVE"
-                  | "A_NEGATIVE"
-                  | "B_POSITIVE"
-                  | "B_NEGATIVE"
-                  | "AB_POSITIVE"
-                  | "AB_NEGATIVE"
-                  | "O_POSITIVE"
-                  | "O_NEGATIVE",
-            }
-          : {}),
-
-        ...(district
-          ? {
-              district: {
-                contains:
-                  district,
-                mode: "insensitive",
-              },
-            }
-          : {}),
+        status: "ACTIVE",
       },
 
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-          },
+      ...(bloodGroup
+        ? {
+            bloodGroup:
+              bloodGroup as BloodGroup,
+          }
+        : {}),
+
+      ...(district
+        ? {
+            district: {
+              contains: district,
+              mode: "insensitive" as const,
+            },
+          }
+        : {}),
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
         },
       },
-
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-  return donors;
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
 };
 
 const getDonorById = async (
@@ -177,7 +177,6 @@ const getDonorById = async (
           status: "ACTIVE",
         },
       },
-
       include: {
         user: {
           select: {
@@ -217,10 +216,6 @@ const updateDonor = async (
     );
   }
 
-  /*
-    Donor can update own profile.
-    Admin can also moderate it.
-  */
   if (
     role !== "ADMIN" &&
     donor.userId !== userId
@@ -231,8 +226,7 @@ const updateDonor = async (
   }
 
   if (
-    payload.district !==
-      undefined &&
+    payload.district !== undefined &&
     !payload.district.trim()
   ) {
     throw new Error(
@@ -240,54 +234,41 @@ const updateDonor = async (
     );
   }
 
-  const updatedDonor =
-    await prisma.donorProfile.update({
-      where: {
-        id,
-      },
+  return prisma.donorProfile.update({
+    where: {
+      id,
+    },
+    data: {
+      bloodGroup: payload.bloodGroup,
 
-      data: {
-        bloodGroup:
-          payload.bloodGroup,
+      district:
+        payload.district !== undefined
+          ? payload.district.trim()
+          : undefined,
 
-        district:
-          payload.district !==
-          undefined
-            ? payload.district.trim()
-            : undefined,
+      area:
+        payload.area !== undefined
+          ? payload.area?.trim() || null
+          : undefined,
 
-        area:
-          payload.area !==
-          undefined
-            ? payload.area?.trim() ||
-              null
-            : undefined,
+      lastDonation:
+        payload.lastDonation !== undefined
+          ? payload.lastDonation
+            ? new Date(payload.lastDonation)
+            : null
+          : undefined,
 
-        lastDonation:
-          payload.lastDonation !==
-          undefined
-            ? payload.lastDonation
-              ? new Date(
-                  payload.lastDonation
-                )
-              : null
-            : undefined,
-
-        isAvailable:
-          payload.isAvailable,
-      },
-
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-          },
+      isAvailable: payload.isAvailable,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
         },
       },
-    });
-
-  return updatedDonor;
+    },
+  });
 };
 
 const deleteDonor = async (
@@ -318,19 +299,15 @@ const deleteDonor = async (
     );
   }
 
-  const result =
-    await prisma.donorProfile.update({
-      where: {
-        id,
-      },
-
-      data: {
-        isDeleted: true,
-        isAvailable: false,
-      },
-    });
-
-  return result;
+  return prisma.donorProfile.update({
+    where: {
+      id,
+    },
+    data: {
+      isDeleted: true,
+      isAvailable: false,
+    },
+  });
 };
 
 export const DonorService = {

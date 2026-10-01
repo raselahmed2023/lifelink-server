@@ -1,3 +1,4 @@
+
 import express, {
   type Application,
   type Request,
@@ -23,7 +24,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
 
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({
@@ -37,7 +38,6 @@ app.use("/api/users", userRoutes);
 app.use("/api/donors", donorRoutes);
 app.use("/api/blood-requests", bloodRequestRoutes);
 app.use("/api/contact-requests", contactRequestRoutes);
-
 
 app.use(notFoundHandler);
 app.use(globalErrorHandler);

@@ -1,3 +1,4 @@
+
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../../lib/prisma.js";
@@ -14,21 +15,34 @@ type LoginPayload = {
   password: string;
 };
 
-const registerUser = async (payload: RegisterPayload) => {
+const registerUser = async (
+  payload: RegisterPayload
+) => {
   const { name, email, password, phone } = payload;
 
-  // Basic validation
-  if (!name || !email || !password) {
-    throw new Error("Name, email and password are required");
+  if (
+    typeof name !== "string" ||
+    typeof email !== "string" ||
+    typeof password !== "string" ||
+    !name.trim() ||
+    name.trim().length > 100 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    password.length < 8 ||
+    password.length > 128 ||
+    (
+      phone !== undefined &&
+      typeof phone !== "string"
+    )
+  ) {
+    throw new Error(
+      "Enter a valid name, email and password (8+ characters)"
+    );
   }
 
-  if (password.length < 6) {
-    throw new Error("Password must be at least 6 characters");
-  }
+  const normalizedEmail = email
+    .trim()
+    .toLowerCase();
 
-  const normalizedEmail = email.trim().toLowerCase();
-
-  // Check if user already exists
   const existingUser = await prisma.user.findUnique({
     where: {
       email: normalizedEmail,
@@ -36,13 +50,16 @@ const registerUser = async (payload: RegisterPayload) => {
   });
 
   if (existingUser) {
-    throw new Error("User already exists with this email");
+    throw new Error(
+      "User already exists with this email"
+    );
   }
 
-  // Hash password
-  const hashedPassword = await bcrypt.hash(password, 12);
+  const hashedPassword = await bcrypt.hash(
+    password,
+    12
+  );
 
-  // Create user
   const user = await prisma.user.create({
     data: {
       name: name.trim(),
@@ -64,17 +81,26 @@ const registerUser = async (payload: RegisterPayload) => {
   return user;
 };
 
-const loginUser = async (payload: LoginPayload) => {
+const loginUser = async (
+  payload: LoginPayload
+) => {
   const { email, password } = payload;
 
-  // Basic validation
-  if (!email || !password) {
-    throw new Error("Email and password are required");
+  if (
+    typeof email !== "string" ||
+    typeof password !== "string" ||
+    !email ||
+    !password
+  ) {
+    throw new Error(
+      "Email and password are required"
+    );
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = email
+    .trim()
+    .toLowerCase();
 
-  // Find user
   const user = await prisma.user.findUnique({
     where: {
       email: normalizedEmail,
@@ -82,31 +108,36 @@ const loginUser = async (payload: LoginPayload) => {
   });
 
   if (!user || user.isDeleted) {
-    throw new Error("Invalid email or password");
+    throw new Error(
+      "Invalid email or password"
+    );
   }
 
-  // Blocked user cannot login
   if (user.status === "BLOCKED") {
-    throw new Error("Your account has been blocked");
+    throw new Error(
+      "Your account has been blocked"
+    );
   }
 
-  // Compare password
   const isPasswordMatched = await bcrypt.compare(
     password,
     user.password
   );
 
   if (!isPasswordMatched) {
-    throw new Error("Invalid email or password");
+    throw new Error(
+      "Invalid email or password"
+    );
   }
 
   const jwtSecret = process.env.JWT_SECRET;
 
   if (!jwtSecret) {
-    throw new Error("JWT_SECRET is not defined");
+    throw new Error(
+      "JWT_SECRET is not defined"
+    );
   }
 
-  // Generate JWT
   const token = jwt.sign(
     {
       userId: user.id,

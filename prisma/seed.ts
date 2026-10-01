@@ -1,3 +1,4 @@
+
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -23,7 +24,17 @@ const prisma = new PrismaClient({
   adapter,
 });
 
-const demoDonors = [
+type DemoDonor = {
+  name: string;
+  email: string;
+  phone: string;
+  bloodGroup: BloodGroup;
+  district: string;
+  area: string;
+  lastDonation: Date;
+};
+
+const demoDonors: DemoDonor[] = [
   {
     name: "Nusrat Jahan",
     email: "nusrat.demo@lifelink.com",
@@ -31,9 +42,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.O_POSITIVE,
     district: "Dhaka",
     area: "Dhanmondi",
-    lastDonation: new Date(
-      "2026-05-15"
-    ),
+    lastDonation: new Date("2026-05-15"),
   },
   {
     name: "Rafiqul Hassan",
@@ -42,9 +51,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.A_POSITIVE,
     district: "Khulna",
     area: "Sonadanga",
-    lastDonation: new Date(
-      "2026-04-20"
-    ),
+    lastDonation: new Date("2026-04-20"),
   },
   {
     name: "Sajid Mahmud",
@@ -53,9 +60,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.B_POSITIVE,
     district: "Rajshahi",
     area: "Boalia",
-    lastDonation: new Date(
-      "2026-06-10"
-    ),
+    lastDonation: new Date("2026-06-10"),
   },
   {
     name: "Farhana Sultana",
@@ -64,9 +69,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.AB_NEGATIVE,
     district: "Chattogram",
     area: "Panchlaish",
-    lastDonation: new Date(
-      "2026-03-28"
-    ),
+    lastDonation: new Date("2026-03-28"),
   },
   {
     name: "Tanvir Ahmed",
@@ -75,9 +78,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.O_NEGATIVE,
     district: "Sylhet",
     area: "Zindabazar",
-    lastDonation: new Date(
-      "2026-05-30"
-    ),
+    lastDonation: new Date("2026-05-30"),
   },
   {
     name: "Mehedi Hasan",
@@ -86,9 +87,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.B_NEGATIVE,
     district: "Dhaka",
     area: "Mirpur",
-    lastDonation: new Date(
-      "2026-02-18"
-    ),
+    lastDonation: new Date("2026-02-18"),
   },
   {
     name: "Sumaiya Akter",
@@ -97,9 +96,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.A_POSITIVE,
     district: "Rangpur",
     area: "Jahaj Company More",
-    lastDonation: new Date(
-      "2026-06-02"
-    ),
+    lastDonation: new Date("2026-06-02"),
   },
   {
     name: "Arif Hossain",
@@ -108,9 +105,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.AB_POSITIVE,
     district: "Barishal",
     area: "Nathullabad",
-    lastDonation: new Date(
-      "2026-04-12"
-    ),
+    lastDonation: new Date("2026-04-12"),
   },
   {
     name: "Jannatul Ferdous",
@@ -119,9 +114,7 @@ const demoDonors = [
     bloodGroup: BloodGroup.O_POSITIVE,
     district: "Mymensingh",
     area: "Town Hall",
-    lastDonation: new Date(
-      "2026-05-08"
-    ),
+    lastDonation: new Date("2026-05-08"),
   },
   {
     name: "Shakib Rahman",
@@ -130,13 +123,20 @@ const demoDonors = [
     bloodGroup: BloodGroup.B_POSITIVE,
     district: "Chattogram",
     area: "Agrabad",
-    lastDonation: new Date(
-      "2026-06-15"
-    ),
+    lastDonation: new Date("2026-06-15"),
   },
 ];
 
 async function main() {
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.ALLOW_DEMO_SEED !== "true"
+  ) {
+    throw new Error(
+      "Demo seeding requires ALLOW_DEMO_SEED=true outside production"
+    );
+  }
+
   console.log(
     "Starting LifeLink demo donor seed..."
   );
@@ -179,41 +179,31 @@ async function main() {
       },
 
       update: {
-        bloodGroup:
-          donor.bloodGroup,
-        district:
-          donor.district,
+        bloodGroup: donor.bloodGroup,
+        district: donor.district,
         area: donor.area,
-        lastDonation:
-          donor.lastDonation,
+        lastDonation: donor.lastDonation,
         isAvailable: true,
         isDeleted: false,
       },
 
       create: {
         userId: user.id,
-        bloodGroup:
-          donor.bloodGroup,
-        district:
-          donor.district,
+        bloodGroup: donor.bloodGroup,
+        district: donor.district,
         area: donor.area,
-        lastDonation:
-          donor.lastDonation,
+        lastDonation: donor.lastDonation,
         isAvailable: true,
       },
     });
 
     console.log(
-      `✓ ${donor.name} created`
+      `${donor.name} created`
     );
   }
 
   console.log(
-    "\n✅ 10 demo donors seeded successfully."
-  );
-
-  console.log(
-    "Demo password for every account: Demo@123"
+    "10 demo donors seeded successfully."
   );
 }
 

@@ -1,3 +1,4 @@
+
 import prisma from "../../lib/prisma.js";
 
 type BloodGroup =
@@ -40,14 +41,13 @@ type UpdateBloodRequestPayload = {
 const createBloodRequest = async (
   payload: CreateBloodRequestPayload
 ) => {
-  const user =
-    await prisma.user.findFirst({
-      where: {
-        id: payload.userId,
-        isDeleted: false,
-        status: "ACTIVE",
-      },
-    });
+  const user = await prisma.user.findFirst({
+    where: {
+      id: payload.userId,
+      isDeleted: false,
+      status: "ACTIVE",
+    },
+  });
 
   if (!user) {
     throw new Error(
@@ -58,38 +58,145 @@ const createBloodRequest = async (
   return prisma.bloodRequest.create({
     data: {
       userId: payload.userId,
-
-      patientName:
-        payload.patientName.trim(),
-
-      bloodGroup:
-        payload.bloodGroup,
-
-      hospital:
-        payload.hospital.trim(),
-
-      district:
-        payload.district.trim(),
-
-      requiredDate:
-        new Date(
-          payload.requiredDate
-        ),
-
-      phone:
-        payload.phone.trim(),
-
-      message:
-        payload.message?.trim() ||
-        null,
-
-      /*
-        IMPORTANT:
-        always starts PENDING.
-      */
+      patientName: payload.patientName.trim(),
+      bloodGroup: payload.bloodGroup,
+      hospital: payload.hospital.trim(),
+      district: payload.district.trim(),
+      requiredDate: new Date(payload.requiredDate),
+      phone: payload.phone.trim(),
+      message: payload.message?.trim() || null,
       status: "PENDING",
     },
   });
+};
+
+const publicRequestSelect = {
+  id: true,
+  bloodGroup: true,
+  hospital: true,
+  district: true,
+  requiredDate: true,
+  message: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+const getPublicBloodRequests = async (
+  filters?: {
+    bloodGroup?: string;
+    district?: string;
+  }
+) => {
+  return prisma.bloodRequest.findMany({
+    where: {
+      isDeleted: false,
+      status: "APPROVED",
+      ...(filters?.bloodGroup
+        ? {
+            bloodGroup:
+              filters.bloodGroup as BloodGroup,
+          }
+        : {}),
+      ...(filters?.district
+        ? {
+            district: {
+              contains: filters.district,
+              mode: "insensitive" as const,
+            },
+          }
+        : {}),
+    },
+    select: publicRequestSelect,
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const getMyBloodRequests = async (
+  userId: string
+) => {
+  return prisma.bloodRequest.findMany({
+    where: {
+      userId,
+      isDeleted: false,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const getPublicBloodRequestById = async (
+  id: string
+) => {
+  const request =
+    await prisma.bloodRequest.findFirst({
+      where: {
+        id,
+        status: "APPROVED",
+        isDeleted: false,
+      },
+      select: publicRequestSelect,
+    });
+
+  if (!request) {
+    throw new Error(
+      "Blood request not found"
+    );
+  }
+
+  return request;
+};
+
+const getBloodRequestContact = async (
+  id: string,
+  userId: string
+) => {
+  const request =
+    await prisma.bloodRequest.findFirst({
+      where: {
+        id,
+        status: "APPROVED",
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        phone: true,
+        userId: true,
+      },
+    });
+
+  if (!request) {
+    throw new Error(
+      "Blood request not found"
+    );
+  }
+
+  if (request.userId !== userId) {
+    const donor =
+      await prisma.donorProfile.findFirst({
+        where: {
+          userId,
+          isDeleted: false,
+          isAvailable: true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (!donor) {
+      throw new Error(
+        "An available donor profile is required to view contact information"
+      );
+    }
+  }
+
+  return {
+    phone: request.phone,
+  };
 };
 
 const getAllBloodRequests = async (
@@ -102,24 +209,20 @@ const getAllBloodRequests = async (
   return prisma.bloodRequest.findMany({
     where: {
       isDeleted: false,
-
       ...(filters?.bloodGroup
         ? {
             bloodGroup:
               filters.bloodGroup as BloodGroup,
           }
         : {}),
-
       ...(filters?.district
         ? {
             district: {
-              contains:
-                filters.district,
+              contains: filters.district,
               mode: "insensitive",
             },
           }
         : {}),
-
       ...(filters?.status
         ? {
             status:
@@ -127,7 +230,6 @@ const getAllBloodRequests = async (
           }
         : {}),
     },
-
     orderBy: {
       createdAt: "desc",
     },
@@ -154,156 +256,117 @@ const getBloodRequestById = async (
   return request;
 };
 
-/*
-  USER:
-  can edit only own request details.
-
-  USER CANNOT:
-  APPROVE / REJECT / COMPLETE.
-*/
-const updateBloodRequestByOwner =
-  async (
-    id: string,
-    userId: string,
-    payload: UpdateBloodRequestPayload
-  ) => {
-    const request =
-      await prisma.bloodRequest.findFirst({
-        where: {
-          id,
-          isDeleted: false,
-        },
-      });
-
-    if (!request) {
-      throw new Error(
-        "Blood request not found"
-      );
-    }
-
-    if (
-      request.userId !== userId
-    ) {
-      throw new Error(
-        "You can only update your own blood request"
-      );
-    }
-
-    /*
-      Once admin reviews it,
-      user should not edit it.
-    */
-    if (
-      request.status !==
-      "PENDING"
-    ) {
-      throw new Error(
-        "Only pending blood requests can be edited"
-      );
-    }
-
-    return prisma.bloodRequest.update({
+const updateBloodRequestByOwner = async (
+  id: string,
+  userId: string,
+  payload: UpdateBloodRequestPayload
+) => {
+  const request =
+    await prisma.bloodRequest.findFirst({
       where: {
         id,
-      },
-
-      data: {
-        patientName:
-          payload.patientName !==
-          undefined
-            ? payload.patientName.trim()
-            : undefined,
-
-        bloodGroup:
-          payload.bloodGroup,
-
-        hospital:
-          payload.hospital !==
-          undefined
-            ? payload.hospital.trim()
-            : undefined,
-
-        district:
-          payload.district !==
-          undefined
-            ? payload.district.trim()
-            : undefined,
-
-        requiredDate:
-          payload.requiredDate !==
-          undefined
-            ? new Date(
-                payload.requiredDate
-              )
-            : undefined,
-
-        phone:
-          payload.phone !==
-          undefined
-            ? payload.phone.trim()
-            : undefined,
-
-        message:
-          payload.message !==
-          undefined
-            ? payload.message?.trim() ||
-              null
-            : undefined,
+        isDeleted: false,
       },
     });
-  };
 
-/*
-  ADMIN ONLY:
-  controls request status.
-*/
-const updateBloodRequestStatus =
-  async (
-    id: string,
-    status: RequestStatus
-  ) => {
-    const allowedStatuses:
-      RequestStatus[] = [
-      "PENDING",
-      "APPROVED",
-      "REJECTED",
-      "COMPLETED",
-    ];
+  if (!request) {
+    throw new Error(
+      "Blood request not found"
+    );
+  }
 
-    if (
-      !allowedStatuses.includes(
-        status
-      )
-    ) {
-      throw new Error(
-        "Invalid blood request status"
-      );
-    }
+  if (request.userId !== userId) {
+    throw new Error(
+      "You can only update your own blood request"
+    );
+  }
 
-    const request =
-      await prisma.bloodRequest.findFirst({
-        where: {
-          id,
-          isDeleted: false,
-        },
-      });
+  if (request.status !== "PENDING") {
+    throw new Error(
+      "Only pending blood requests can be edited"
+    );
+  }
 
-    if (!request) {
-      throw new Error(
-        "Blood request not found"
-      );
-    }
+  return prisma.bloodRequest.update({
+    where: {
+      id,
+    },
+    data: {
+      patientName:
+        payload.patientName !== undefined
+          ? payload.patientName.trim()
+          : undefined,
 
-    return prisma.bloodRequest.update({
+      bloodGroup: payload.bloodGroup,
+
+      hospital:
+        payload.hospital !== undefined
+          ? payload.hospital.trim()
+          : undefined,
+
+      district:
+        payload.district !== undefined
+          ? payload.district.trim()
+          : undefined,
+
+      requiredDate:
+        payload.requiredDate !== undefined
+          ? new Date(payload.requiredDate)
+          : undefined,
+
+      phone:
+        payload.phone !== undefined
+          ? payload.phone.trim()
+          : undefined,
+
+      message:
+        payload.message !== undefined
+          ? payload.message?.trim() || null
+          : undefined,
+    },
+  });
+};
+
+const updateBloodRequestStatus = async (
+  id: string,
+  status: RequestStatus
+) => {
+  const allowedStatuses: RequestStatus[] = [
+    "PENDING",
+    "APPROVED",
+    "REJECTED",
+    "COMPLETED",
+  ];
+
+  if (!allowedStatuses.includes(status)) {
+    throw new Error(
+      "Invalid blood request status"
+    );
+  }
+
+  const request =
+    await prisma.bloodRequest.findFirst({
       where: {
         id,
-      },
-
-      data: {
-        status,
+        isDeleted: false,
       },
     });
-  };
+
+  if (!request) {
+    throw new Error(
+      "Blood request not found"
+    );
+  }
+
+  return prisma.bloodRequest.update({
+    where: {
+      id,
+    },
+    data: {
+      status,
+    },
+  });
+};
 
 const deleteBloodRequest = async (
   id: string,
@@ -337,7 +400,6 @@ const deleteBloodRequest = async (
     where: {
       id,
     },
-
     data: {
       isDeleted: true,
     },
@@ -346,6 +408,10 @@ const deleteBloodRequest = async (
 
 export const BloodRequestService = {
   createBloodRequest,
+  getPublicBloodRequests,
+  getMyBloodRequests,
+  getPublicBloodRequestById,
+  getBloodRequestContact,
   getAllBloodRequests,
   getBloodRequestById,
   updateBloodRequestByOwner,
