@@ -5,9 +5,9 @@
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "node api.js && tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node api.js && node dist/server.js",
+    "dev": "node init && tsx watch src/server.ts",
+    "build": "node init && tsc",
+    "start": "node init && node dist/server.js",
     "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],
